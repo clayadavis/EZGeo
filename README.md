@@ -1,7 +1,7 @@
 EZGeo
 =====
 
-Okay, I dug up some old code. Attached is a zip file with some geocoding resources. It's not particularly well documented, but there's a geocoder_demo.py file in there that shows a couple examples. I know the API on bing has changed, but you should try the others (yahoo, google). You can use my API keys for testing, but if you're going above 500 queries a day or something, use a different key. They should be free if you want to get your own. I think some part of Truthy still uses my keys. Go ahead and try to use that code, see if any of it works for you.
+Okay, I dug up some old code. It's not particularly well documented, but there's a geocoder_demo.py file in there that shows a couple examples. I know the API on bing has changed, but you should try the others (yahoo, google). You can use my API keys for testing, but if you're going above 500 queries a day or something, use a different key. They should be free if you want to get your own. I think some part of Truthy still uses my keys. Go ahead and try to use that code, see if any of it works for you.
 
 Next is the blacklist code. People aren't very clever when coming up with pithy answers for their location. We can filter out a pretty large number of fake locations (e.g. Earth, on the dancefloor) with fuzzy string matching. The blacklist code has two parts, a python class and a textfile with the words to blacklist. Use it like so:
 
