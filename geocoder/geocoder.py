@@ -33,6 +33,11 @@ def geocode(query='Yellowstone', site='google', key='', verbose=False, chop=True
 
     s = page.read()
     J = json.loads(s)
+    if site=='osm':
+        if J:
+            J = J[0]
+        else:
+            J = {}    
     J.setdefault('name', query)
     if chop: #Reprocess the response into the common format
         response = chopshop(J, site)
@@ -61,6 +66,15 @@ def geturl(query='Yellowstone', site='bing', key=''):
                   }
         if reverse:
             params['sensor']='false'
+    
+    # OpenStreetMap Nominatim API
+    elif site=='osm':
+        site_url = 'http://nominatim.openstreetmap.org/search?%s'
+        params = {'q': query,
+                  'format': 'json',
+                  'addressdetails': '1',
+                  'accept-language': 'en'
+                  }        
             
     #----------------        
     elif site=='bing':
@@ -121,8 +135,37 @@ def chopshop(J, site, verbose=False):
         resp[u'name'] = J['name']  
         for k in keys:
             resp[k] = first[k]
+  
+    elif site == 'osm':
+        try:
+            address = J['address']
+        except (KeyError, IndexError):
+            if verbose:
+                print "No results found for %s" % J['name']
+            return resp
+         
+        resp[u'name'] = J['display_name'] 
+        resp['latitude'] = J['lat']
+        resp['longitude'] = J['lon']
         
-
+        try:
+            resp['city'] = address['city']
+        except KeyError:
+            pass
+        
+        resp['statecode'] = ''
+        
+        try:
+            resp['state'] = address['state']
+        except KeyError:
+            pass    
+        
+        try:
+            resp['country'] = address['country']
+            resp['countrycode'] = address['country_code'] 
+        except KeyError:
+            pass        
+        
     elif site == 'bing':
         try:
             first = J['resourceSets'][0]['resources'][0]
