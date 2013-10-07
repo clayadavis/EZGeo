@@ -17,6 +17,9 @@ _country_to_code = {}
 ####--------------------------------------------------------------------
 # This is the main function that actually does (reverse) geocoding.
 def geocode(query='Yellowstone', site='google', key='', verbose=False, chop=True):
+    # Must encode all locations in utf-8 before sending through a URL-based API
+    query = query.encode('utf-8')
+    
     url = geturl(query, site, key)
     #print url
     failures = 0
