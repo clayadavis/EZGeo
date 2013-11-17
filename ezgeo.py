@@ -3,79 +3,21 @@
 import geocoder
 import re
 import pprint
-from unihandecode import Unihandecoder
+import blacklist
+import json
+import os
+
+BLACKLIST_CUTOFF = 0.8
 
 prettyPrint = pprint.PrettyPrinter(indent=4).pprint
+blacklist_words = open(os.path.dirname(__file__) + "/dictionaries/blacklist.txt").read().split('\n')
+b = blacklist.Blacklist(blacklist_words)
+json_data = open(os.path.dirname(__file__) + "/dictionaries/nicknames.json")
+nicknames = json.load(json_data)
 
-# Encodes string in utf-8 and makes substitutions (todo: from blacklist?)
-def clean_location_string(locstr):
-    # Strip all possible newline codes
-    locstr = locstr.join(locstr.splitlines())
-    locstr = locstr.strip()
-
-    # Replace certain character sequences no matter where they appear in the query.
-    substitutions = {
-    '\t': ' ', 
-    '\r': ' ',
-    '\n': ' ',  
-    ';)': '',
-    ':)': '',
-    'q8': 'kuwait',
-    '\xe2\x9c\x94verified Account':'' 
-    }
-    
-    for (k,v) in substitutions.items():
-        if k in locstr.lower():
-            locstr = locstr.lower().replace(k,v)
-    
-    # Replace query if it matches a blacklist token in it's entirety
-    locstr = blacklist_token_replace(locstr)
-    
-    return locstr
-
-# Maps certain tokens to appropriate substitutions (case-insensitive).  To remove tokens entirely, we map them to null strings.
-def blacklist_token_replace(token):
-    blacklist = {
-    'ksa':'saudi',
-    'heaven':'', 
-    'earth':'', 
-    'world':'',
-    'everywhere':'', 
-    'bieberland': '',
-    'bieberlandia': '',
-    'narnia': '',
-    'in your dreams': '',
-    'spaceship': '',
-    'narnia': '',
-    'universe': '',
-    'on the moon': '',
-    'mother earth': '',
-    'the dance floor': '',
-    't-dot': 'canada',
-    'london town': 'united kingdom',
-    'lion city': 'singapore',
-    'philly': 'united states of america',
-    'u.s.a.': 'united states of america',
-    'nyc': 'united states of america',
-    'atl': 'united states of america',
-    'dc': 'united states of america',
-    'la': 'united states of america',
-    'jpn': 'japan'
-    }
-    
-    if token.lower() in blacklist.keys():
-        token = blacklist[token.lower()]
-        
-    # Eliminate tokens which are pure numbers    
-    regex = re.compile(r'\d+$')
-    if regex.match(token.lower()):    
-        token = ''
-        
-    return token
-    
 # Tries to resolve a location string to a particular country.  Returns summary information on location if found.  
 # Uses OSM Nominatim API for natural language, and Yahoo API for lat/lon
-def resolve_location_string(locstr, lang='en', verbose=False):
+def resolve_location_string(locstr, verbose=False):
     # Return null object for empty locations
     if locstr == None or locstr == '':
         return None
@@ -84,25 +26,138 @@ def resolve_location_string(locstr, lang='en', verbose=False):
     
     # Clean location string and make appropriate substitutions
     locstr = clean_location_string(locstr)
-    
-    # First step: attempt to run query directly
+
+    # First step: attempt to run (unicode-removed) query as a lat/lon
     try:
-        G = geocoder.geocode(locstr,site='osm')
+        G = match_gps(locstr, verbose)
         if G['countrycode']:
             return G
     except ValueError:
         pass
+
+    # Second,  clean string of blacklisted tokens and attempt to match entire string
+    # Tokenize location string
+    clean_tokens = get_relevant_tokens(locstr, verbose)
     
-    # Second step: attempt to run query as a lat/lon through yahoo
+    print clean_tokens
+    
+    # Reconstitute valid tokens into a single cleaned string
+    clean_locstr = ""
+    for (tok, sep) in clean_tokens:
+        clean_locstr += tok + sep
+    if verbose:
+        print "Cleaned string: " + repr(clean_locstr)
+    # First, try to match entire cleaned string
     try:
-        # If it's a lat/lon, go ahead and put it through yahoo.
-        suffix = locstr.split(':')[-1]
-        (lat,lon) = [float(x) for x in suffix.strip('( )').split(',')]
-        reverse = True
-        query = "%s,%s" % (lat, lon)
+        G = match_phrase(clean_locstr, verbose)
+        if G['countrycode']:
+            return G
+    except:
         if verbose:
-            print "* Re-checking %s" % repr(query)
-        G = geocoder.geocode(query,site='yahoo')
+            print "Could not match entire phrase.  Attempting to match tokens."
+        pass
+    
+    # Third, try to match multiple tokens individually.  If all resolvable tokens match to the same country, then return the matched dataset 
+    # TODO: In this case, return the intersection of different tokens' datasets (i.e., only what they have in common).
+    if (len(clean_tokens) > 1):
+        if verbose:
+            print "Trying to match tokens in \"%s\"." % (repr(clean_locstr))
+        
+        final_match = None
+        for token_pairs in clean_tokens:
+            tok = token_pairs[0]
+            current_match = match_phrase(tok, verbose) 
+            if verbose:
+                print "Trying to match " + repr(tok)
+            # First, try to directly resolve the token
+            if current_match['country']:
+                if verbose:
+                    print "** Resolved token \"%s\" to %s" % (repr(tok), repr(current_match['country']))
+            
+            # If we haven't made a match before
+            if (final_match != None):
+                # If the lat/lon don't match, clear the lat/lon
+                if (current_match['latitude'] != ""):
+                    if (not (current_match['latitude'] == final_match['latitude'] and current_match['longitude'] == final_match['longitude'])):
+                        final_match['latitude'] = final_match['longitude'] = ""
+                # If the city doesn't match, clear the city
+                if (current_match['city'] != ""):
+                    if (current_match['city'] != final_match['city']):
+                        final_match['city'] = ""
+                # If the state doesn't  match, clear the state
+                if (current_match['state'] != ""):
+                    if (current_match['state'] != final_match['state']):
+                        final_match['state'] = final_match['statecode'] = ""
+                # If the country doesn't match, clear the country and return
+                if (current_match['country'] != "" ):
+                    if (current_match['country'] != final_match['country']):
+                        final_match['country'] = final_match['countrycode'] = ""
+                        return final_match
+            else:
+                final_match = current_match
+
+        return final_match
+
+    return None
+
+# Converts to lowercase, removes emoticons, and standardizes some common whitespace items
+def clean_location_string(locstr):
+    locstr = locstr.strip().lower()
+
+    # Replace certain character sequences no matter where they appear in the query.
+    substitutions = {
+    '\t': ' ', 
+    '\r': ' ',
+    '\n': ' ',  
+    ';)': '',
+    ':)': ''
+    }
+    
+    for (k,v) in substitutions.items():
+        if k in locstr.lower():
+            locstr = locstr.lower().replace(k,v)
+    
+    return locstr
+
+# Convert a string into a dictionary of relevant tokens, deleting any blacklisted tokens.  
+# Tokens are defined as being separated by any of: [,/\&| and or to]
+# Returns an array of (token,separator) pairs.
+def get_relevant_tokens(locstr, verbose=False):
+    token_pairs = []
+    # Split on all possible delimiters
+    tokens_and_separators = re.split('(,|/|\\\\|&|\|| and | or | to )', locstr)
+    if verbose:
+        print tokens_and_separators
+    tokens = tokens_and_separators[0:len(tokens_and_separators):2]
+    # Map non-empty and non-numeric tokens to their separators
+    re_num = re.compile(r'\d+$') 
+    for idx, tok in enumerate(tokens):
+        if (tok != ""  and not re_num.match(tok)):
+            score, match = b.checkWord(repr(tok))   #Check the non-unicode version of the string
+            if score < BLACKLIST_CUTOFF:
+                if (idx+1 < len(tokens)):
+                    sep =  tokens_and_separators[idx+1]
+                else:
+                    sep = ""    
+                token_pairs.append((tok.strip(), sep))
+            else:
+                if verbose:
+                    print "Found blacklisted token: %s as %s, score %s" % (repr(tok), repr(match), str(score))
+        else:
+            if verbose:
+                print "Found numeric or null token: " + tok        
+    return token_pairs
+            
+def match_phrase(phrase, verbose=False):
+    # First step: attempt to map nicknames to standard place names
+    if (phrase in nicknames):
+        if verbose:
+            print "Resolved nickname \"%s\" as \"%s\": " % (repr(phrase), repr(nicknames[phrase]))
+        phrase = nicknames[phrase]
+
+    # Second step: attempt to match mapped string in Nominatim
+    try:
+        G = geocoder.geocode(phrase,site='osm')
         if G['countrycode']:
             return G
     except ValueError:
@@ -110,67 +165,28 @@ def resolve_location_string(locstr, lang='en', verbose=False):
 
     # Third step: attempt to run query, removing any (parenthesized) expressions
     paren_regex = "\(.+?\)"
-    noparens = re.sub(paren_regex,'',locstr)
+    noparens = re.sub(paren_regex,'',phrase)
 
-    if noparens != locstr:
+    if noparens != phrase:
         if verbose:
-            print "* Removing parenthetical expression: \"%s\" -> \"%s\"" % (repr(noparens), repr(locstr))
+            print "* Removing parenthetical expression: \"%s\" -> \"%s\"" % (repr(noparens), repr(phrase))
         try:
             G = geocoder.geocode(noparens, site='osm')
             if G['countrycode']:
                 if verbose:
-                    print "** Resolved \"%s\" as \"%s\"" % (repr(locstr), repr(noparens))
+                    print "** Resolved \"%s\" as \"%s\"" % (repr(phrase), repr(noparens))
                 return G
-        except:
+        except ValueError:
             pass    
-    
-    #Fourth step: attempt to break query into tokens, and run tokens individually
-    #If all resolvable tokens match to the same country, then return this country 
-    # TODO: In this case, strip out any info more specific than country name and location
-    if verbose:
-        print "* Splitting \"%s\"." % (repr(noparens))
-    
-    # Split on all possible delimiters
-    tokens = re.split(',|/|\\\\|&|\|| and | or | to ', noparens)
-    matched_country = None
-    for token_ws in tokens:
-        current_match = None
-        # Strip whitespace from tokens and replace certain tokens with empty string
-        token = blacklist_token_replace(token_ws.strip())
-        
-        if (token != ''):
-            try:
-                # First, try to directly resolve the token
-                G = geocoder.geocode(token, site='osm')
-                if G['countrycode']:
-                    if verbose:
-                        print "** Resolved \"%s\" as \"%s\"" % (repr(noparens), repr(token))
-                    current_match = G['countrycode']
-                    if (matched_country != None and matched_country != current_match):
-                        return None
-                    else:
-                        matched_country = current_match
-                        continue
-            except:
-                pass
-            
-            # If token doesn't match, try to match transliterated version
-            try:
-                # First, try to directly resolve the token
-                print "Transliterating %s (lang=%s)" % (repr(token), lang)
-                # WARNING: this library potentially has an infinite loop...
-                unihandecoder = Unihandecoder(lang)
-                G = geocoder.geocode(unihandecoder.decode(token), site='osm')
-                if G['countrycode']:
-                    if verbose:
-                        print "** Resolved \"%s\" as \"%s\"" % (repr(noparens), unihandecoder.decode(token))
-                    current_match = G['countrycode']
-                    if (matched_country != None and matched_country != current_match):
-                        return None
-                    else:
-                        matched_country = current_match
-                        continue
-            except:
-                pass        
+
     return G
+        
+def match_gps(locstr, verbose=False):
+    suffix = locstr.split(':')[-1]
+    (lat,lon) = [float(x) for x in suffix.strip('( )').split(',')]
+    reverse = True
+    query = "%s,%s" % (lat, lon)
+    if verbose:
+        print "Trying to match string \"%s\" as lat/lon..." % repr(query)
+    return geocoder.geocode(query,site='osm')
         
