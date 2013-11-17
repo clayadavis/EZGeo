@@ -129,14 +129,15 @@ def get_relevant_tokens(locstr, verbose=False):
     if verbose:
         print tokens_and_separators
     tokens = tokens_and_separators[0:len(tokens_and_separators):2]
+    print tokens
     # Map non-empty and non-numeric tokens to their separators
     re_num = re.compile(r'\d+$') 
     for idx, tok in enumerate(tokens):
         if (tok != ""  and not re_num.match(tok)):
             score, match = b.checkWord(repr(tok))   #Check the non-unicode version of the string
             if score < BLACKLIST_CUTOFF:
-                if (idx+1 < len(tokens)):
-                    sep =  tokens_and_separators[idx+1]
+                if (2*idx+1 < len(tokens_and_separators)):
+                    sep =  tokens_and_separators[2*idx+1]
                 else:
                     sep = ""    
                 token_pairs.append((tok.strip(), sep))

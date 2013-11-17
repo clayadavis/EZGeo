@@ -3,7 +3,7 @@ import ezgeo
 from unihandecode import Unihandecoder
 
 #Three types of query: lat/lon, place name, location name
-queries = [('Spangfield, MA', 'en'),
+queries = [
            ('Houston and The Big Apple', 'en'),
            ('Atlanta to Japan', 'en'),
            ('Norge, Skien', 'en'),
