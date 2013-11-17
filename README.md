@@ -8,7 +8,9 @@ Coming up with a rough estimate of a user's location (city, state, or country) i
 
 EZGeo attempts to resolve a query string representing a geographic location, anywhere in the world, in any language.  It does this using multiple data sources, including:
 1) OpenStreetMaps Nominatim API
+
 2) Hand-built gazette of distinctive city and country nicknames
+
 3) Blacklist of common "fake" locations
 
 After successfully resolving a query string, the algorithm will return as much of the following information as possible: latitude/longitude, city, state/state code, and country/country code.  The information is returned as a JSON data structure, as specified in the "Usage" section.
@@ -63,5 +65,7 @@ EZGeo begins by cleaning the string, removing leading and trailing whitespace, a
 
 ##Ideas for Improvement:
 1) Limiting Nominatim to only return matches that resolve to a city, town, country, state, province, or territory.
+
 2) Maintaining a local gazette of the most popular locations, in JSON format, and only query the Nominatim API as a fallback measure.
+
 3) Utilize more advanced matching techniques with said gazette, using regular expressions, feature classifiers, etc.
