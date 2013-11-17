@@ -43,11 +43,14 @@ EZGeo will attempt to resolve the query string as specifically as possible.  If 
 EZGeo begins by cleaning the string, removing leading and trailing whitespace, and converting any newline characters to spaces.  It then performs the following steps, returning the appropriate data structure when a match is finally found:
 
 1) Attempt to find GPS coordinates in the string.  If found, attempt to resolve the coordinates using Nominatim.
+
 2) Tokenize the query string into phrases.  A phrase is defined as a sequence of characters separated by the following delimiters: ',', '/', '\', '&', '|', ' and ', ' or ', ' to '.  Any phrases that match the blacklist (using fuzzy matching) are removed.
+
 3) Reconstitute any remaining phrases with their original delimiters, and perform the following steps:
     3a) Try to match the string in the nickname gazette (e.g. "Philly"), and feed the standardized name (e.g. "Philadephia") into Nominatim.
     3b) Try to match the entire string in Nominatim.
     3c) Remove any (parenthesized) expressions from the string, and try to match the string in Nominatim.
+
 4) If the entire string cannot be matched as per step 3, try matching each phrase individually using steps 3a-3c.  Of the phrases which match, return a data structure containing the most specific fields that the phrases have in common.  For example, "Houston and New York" will return a data structure containing the country "United States of America," with empty fields for the city and state.  The query "Atlanta and Japan" will return an empty data structure.
 
 ##Some Notes:
