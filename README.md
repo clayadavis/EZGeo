@@ -25,7 +25,7 @@ To run EZGeo, simply import the module and run the resolve_location_string funct
 import ezgeo
 location_json = ezgeo.resolve_location_string(*location*, *verbose*)
 
-*location* is the location string to be queried, and *verbose* is an optional parameter for printing details about how EZGeo attempted to resolve your query.  <location> can be an ASCII or Unicode string in any language.  The function returns structured location data in the JSON format, as follows:
+*location* is the location string to be queried, and *verbose* is a boolean parameter (default False) for printing details about how EZGeo attempted to resolve your query.  <location> can be an ASCII or Unicode string in any language.  The function returns structured location data in the JSON format, as follows:
 
     {
         'latitude' : <latitude>,
@@ -61,6 +61,8 @@ EZGeo begins by cleaning the string, removing leading and trailing whitespace, a
 
 ##Ideas for Improvement:
 
-[_] Limiting Nominatim to only return matches that resolve to a city, town, country, state, province, or territory.
-[_] Maintaining a local gazette of the most popular locations, in JSON format, and only query the Nominatim API as a fallback measure.
-[_] Utilize more advanced matching techniques with said gazette, using regular expressions, feature classifiers, etc.
+[ ] Limiting Nominatim to only return matches that resolve to a city, town, country, state, province, or territory.
+
+[ ] Maintaining a local gazette of the most popular locations, in JSON format, and only query the Nominatim API as a fallback measure.
+
+[ ] Utilize more advanced matching techniques with said gazette, using regular expressions, feature classifiers, etc.
