@@ -23,9 +23,9 @@ EZGeo requires Python 2.7.6 or greater, and the simplejson library.  There is no
 To run EZGeo, simply import the module and run the resolve_location_string function:
 
 import ezgeo
-location_json = ezgeo.resolve_location_string(<location>, <?verbose>)
+location_json = ezgeo.resolve_location_string(*location*, *verbose*)
 
-<location> is the location string to be queried, and <?verbose> is an optional parameter for printing details about how EZGeo attempted to resolve your query.  <location> can be an ASCII or Unicode string in any language.  The function returns structured location data in the JSON format, as follows:
+*location* is the location string to be queried, and *verbose* is an optional parameter for printing details about how EZGeo attempted to resolve your query.  <location> can be an ASCII or Unicode string in any language.  The function returns structured location data in the JSON format, as follows:
 
     {
         'latitude' : <latitude>,
