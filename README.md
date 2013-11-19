@@ -60,6 +60,7 @@ EZGeo begins by cleaning the string, removing leading and trailing whitespace, a
 3. For better results, you can use this in conjunction with the [unihandecode module](https://github.com/miurahr/unihandecode), which transliterates non-latin characters into their approximate latin representations.  Thus, with location strings that cannot be resolved in their original scripts, you can attempt to resolve the romanized equivalent.
 
 ##Ideas for Improvement:
-[] Limiting Nominatim to only return matches that resolve to a city, town, country, state, province, or territory.
-[] Maintaining a local gazette of the most popular locations, in JSON format, and only query the Nominatim API as a fallback measure.
-[] Utilize more advanced matching techniques with said gazette, using regular expressions, feature classifiers, etc.
+
+[_] Limiting Nominatim to only return matches that resolve to a city, town, country, state, province, or territory.
+[_] Maintaining a local gazette of the most popular locations, in JSON format, and only query the Nominatim API as a fallback measure.
+[_] Utilize more advanced matching techniques with said gazette, using regular expressions, feature classifiers, etc.
