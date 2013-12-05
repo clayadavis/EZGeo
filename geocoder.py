@@ -4,9 +4,9 @@ except ImportError:
     import simplejson as json
 import urllib, csv, time
 
-#These default keys are mine, Clayton Davis. Please change them.
-_Y_api = 'd02e49481fad6a5cf22b29fd9cd07ff75dc9b1e9'
-_bing_api = 'AquszFQCPEdtPVCX-fMi-YodZK_YQQIgmin2GhrCibFK9GeykKTJ_V0xkeDvFJ-v'
+#If using the Yahoo or Bing APIs, specify your API key here.  No API key needed to use the default OpenStreetMap API.
+_Y_api = ''
+_bing_api = ''
 
 #The following aren't loaded up until they are needed. We could change
 #that if needed.
@@ -16,7 +16,10 @@ _country_to_code = {}
 
 ####--------------------------------------------------------------------
 # This is the main function that actually does (reverse) geocoding.
-def geocode(query='Yellowstone', site='google', key='', verbose=False, chop=True):
+def geocode(query='Yellowstone', site='osm', key='', verbose=False, chop=True):
+    # Must encode all locations in utf-8 before sending through a URL-based API
+    query = query.encode('utf-8')
+    
     url = geturl(query, site, key)
     #print url
     failures = 0
@@ -33,6 +36,11 @@ def geocode(query='Yellowstone', site='google', key='', verbose=False, chop=True
 
     s = page.read()
     J = json.loads(s)
+    if site=='osm':
+        if J:
+            J = J[0]
+        else:
+            J = {}    
     J.setdefault('name', query)
     if chop: #Reprocess the response into the common format
         response = chopshop(J, site)
@@ -43,7 +51,7 @@ def geocode(query='Yellowstone', site='google', key='', verbose=False, chop=True
 ####--------------------------------------------------------------------    
 # This function takes a query and crafts the url to submit to the 
 # specified API.
-def geturl(query='Yellowstone', site='bing', key=''):
+def geturl(query='Yellowstone', site='osm', key=''):
     #Check if the input is a lat/lon pair
     try: 
         suffix = query.split(':')[-1]
@@ -61,6 +69,15 @@ def geturl(query='Yellowstone', site='bing', key=''):
                   }
         if reverse:
             params['sensor']='false'
+    
+    # OpenStreetMap Nominatim API
+    elif site=='osm':
+        site_url = 'http://nominatim.openstreetmap.org/search?%s'
+        params = {'q': query,
+                  'format': 'json',
+                  'addressdetails': '1',
+                  'accept-language': 'en'
+                  }        
             
     #----------------        
     elif site=='bing':
@@ -121,8 +138,37 @@ def chopshop(J, site, verbose=False):
         resp[u'name'] = J['name']  
         for k in keys:
             resp[k] = first[k]
+  
+    elif site == 'osm':
+        try:
+            address = J['address']
+        except (KeyError, IndexError):
+            if verbose:
+                print "No results found for %s" % J['name']
+            return resp
+         
+        resp[u'name'] = J['display_name'] 
+        resp['latitude'] = J['lat']
+        resp['longitude'] = J['lon']
         
-
+        try:
+            resp['city'] = address['city']
+        except KeyError:
+            pass
+        
+        resp['statecode'] = ''
+        
+        try:
+            resp['state'] = address['state']
+        except KeyError:
+            pass    
+        
+        try:
+            resp['country'] = address['country']
+            resp['countrycode'] = address['country_code'] 
+        except KeyError:
+            pass        
+        
     elif site == 'bing':
         try:
             first = J['resourceSets'][0]['resources'][0]

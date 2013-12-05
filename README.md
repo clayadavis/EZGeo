@@ -1,21 +1,68 @@
-EZGeo
-=====
+#EZGeo
+##A python package for geocoding cities, states, and countries from unstructured location strings.
+###Version: 0.11
 
-Okay, I dug up some old code. It's not particularly well documented, but there's a geocoder_demo.py file in there that shows a couple examples. I know the API on bing has changed, but you should try the others (yahoo, google). You can use my API keys for testing, but if you're going above 500 queries a day or something, use a different key. They should be free if you want to get your own. I think some part of Truthy still uses my keys. Go ahead and try to use that code, see if any of it works for you.
+##Description
 
-Next is the blacklist code. People aren't very clever when coming up with pithy answers for their location. We can filter out a pretty large number of fake locations (e.g. Earth, on the dancefloor) with fuzzy string matching. The blacklist code has two parts, a python class and a textfile with the words to blacklist. Use it like so:
+Coming up with a rough estimate of a user's location (city, state, or country) is an important part of social media research.  For some social networks, such as Twitter, precise location information is available via geotags that have been embedded by a mobile device.  Unfortunately, only a tiny fraction of users have this feature available and enabled.  A much larger percentage of users specify a less-specific location in an unstructured, user-provided location field.  This field may only be resolvable up to the country, state/province, or city level.  However, this level of detail is often sufficient for generating aggregate demographic data.
 
-    import blacklist
-    black_words = open("generated_blacklist.txt").read().split('\n')
-    b = blacklist.Blacklist(black_words)
+EZGeo attempts to resolve a query string representing a geographic location, anywhere in the world, in any language.  It does this using multiple data sources, including:
 
-    tweet_location = <<some location string>>
-    score, match = b.checkWord(tweet_location)
-    if score > 0.7:
-        <<it's junk>>
-    else:
-        <<go ahead and try to reverse-geocode it>>
+1. [OpenStreetMaps](http://www.openstreetmap.org/) Nominatim API
+2. Hand-built gazette of distinctive city and country nicknames
+3. Blacklist of common "fake" locations
 
-The 0.7 is a heuristic, go ahead and adjust it if you'd like. Also, you're going to need to use another heuristic to split up combo place names like mine: "Austin, TX / Bloomington, IN". I would split those up on common dividers (/ | \ & and or) and look up the left half first, then the second half. Also, removing parenthetical expressions is useful, e.g. "Kirksville (hell), MO". The resolve_user_location_strings.py has these heuristics in it, along with some other useful stuff, but it's a total nightmare and is way undocumented.
+After successfully resolving a query string, the algorithm will return as much of the following information as possible: latitude/longitude, city, state/state code, and country/country code.  The information is returned as a JSON data structure, as specified in the "Usage" section.
 
-If this all sounds like a bunch of totally random crap, it kinda is. But at the same time, I was going through millions of locations and these heuristics worked pretty well for me. I'm sorry about the state of this code; all I can say about that is that I promise I'm a better collaborator now than I was then :)
+EZGeo favors precision over recall.  In other words, the algorithm is designed to minimize false positives, and only return a location if we are very sure.
+
+##Usage
+
+EZGeo requires Python 2.7.6 or greater, and the simplejson library.  There is no installer or setup script at the moment - simply copy the source files into your project.
+
+To run EZGeo, simply import the module and run the resolve_location_string function:
+
+import ezgeo
+location_json = ezgeo.resolve_location_string(*location*, *verbose*)
+
+*location* is the location string to be queried, and *verbose* is a boolean parameter (default False) for printing details about how EZGeo attempted to resolve your query.  <location> can be an ASCII or Unicode string in any language.  The function returns structured location data in the JSON format, as follows:
+
+    {
+        'latitude' : <latitude>,
+        'longitude' : <longitude>,
+        'city' : <city>,
+        'state',  : <state>,
+        'statecode' : <statecode>,
+        'country' : <country>,
+        'countrycode' : <countrycode>
+    }
+    
+EZGeo will attempt to resolve the query string as specifically as possible.  If possible, it will return a city or town.  If it cannot resolve to the city or town level, it will return a state and statecode.  If it cannot find a state, it will attempt to find a country.  Any unresolvable fields will be left blank.  Therefore, a query that cannot be resolved at all will return a JSON structure with all of the fields blank.  EZGeo will return an approximate latitude/longitude based on the centroid of the most specific location found.
+
+##Resolution Algorithm
+
+EZGeo begins by cleaning the string, removing leading and trailing whitespace, and converting any newline characters to spaces.  It then performs the following steps, returning the appropriate data structure when a match is finally found:
+
+1. Attempt to find GPS coordinates in the string.  If found, attempt to resolve the coordinates using Nominatim.
+2. Tokenize the query string into phrases.  A phrase is defined as a sequence of characters separated by the following delimiters: ',', '/', '\', '&', '|', ' and ', ' or ', ' to '.  Any phrases that match the blacklist (using fuzzy matching) are removed.
+3. Reconstitute any remaining phrases with their original delimiters, and perform the following steps:
+    3a. Try to match the string in the nickname gazette (e.g. "Philly"), and feed the standardized name (e.g. "Philadephia") into Nominatim.
+    3b. Try to match the entire string in Nominatim.
+    3c. Remove any (parenthesized) expressions from the string, and try to match the string in Nominatim.
+4. If the entire string cannot be matched as per step 3, try matching each phrase individually using steps 3a-3c.  Of the phrases which match, return a data structure containing the most specific fields that the phrases have in common.  For example, "Houston and New York" will return a data structure containing the country "United States of America," with empty fields for the city and state.  The query "Atlanta and Japan" will return an empty data structure.
+
+##Some Notes:
+
+1. The blacklist fuzzy matching algorithm uses a cutoff score for deciding when to remove a phrase.  Phrases are matched using the SequenceMatcher library, which returns a similarity score between 0.0 (completely dissimilar) and 1.0 (identical).  The cutoff score is specified by BLACKLIST_CUTOFF in ezgeo.py, with a default value of 0.8.
+
+2. The whitelist contains common nicknames for the largest cities and countries.  We've taken care to only use unique nicknames for cities and countries.  Many cities have official, generic nicknames such as "The River City" - these have been omitted because they cannot be reliably resolved to any particular city.  Feel free to add any other _unique_ nicknames you might know of.
+
+3. For better results, you can use this in conjunction with the [unihandecode module](https://github.com/miurahr/unihandecode), which transliterates non-latin characters into their approximate latin representations.  Thus, with location strings that cannot be resolved in their original scripts, you can attempt to resolve the romanized equivalent.
+
+##Ideas for Improvement:
+
+[ ] Limiting Nominatim to only return matches that resolve to a city, town, country, state, province, or territory.
+
+[ ] Maintaining a local gazette of the most popular locations, in JSON format, and only query the Nominatim API as a fallback measure.
+
+[ ] Utilize more advanced matching techniques with said gazette, using regular expressions, feature classifiers, etc.

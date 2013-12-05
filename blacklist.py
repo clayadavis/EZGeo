@@ -17,7 +17,8 @@ class Blacklist:
             m = SequenceMatcher(None,inputword,blacklistword)
             return m.ratio()
 
-        tocheck = self.simplify(word)    
+        #tocheck = self.simplify(word)    
+        tocheck = word
         scores = [getScore(tocheck, blword) for blword in self.word_list]  
         score_dict = dict(zip(scores,self.word_list))
         
